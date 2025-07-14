@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주기율표 카드 뒤집기 게임</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Inter 폰트 적용 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 밝은 배경색 */
+        }
+        /* 카드 뒤집기 애니메이션 */
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            position: relative;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden; /* Safari */
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+            font-weight: bold;
+            font-size: 1.5rem; /* text-2xl */
+        }
+
+        .card-front {
+            background-color: #6366f1; /* indigo-500 */
+            color: white;
+            transform: rotateY(0deg);
+        }
+
+        .card-back {
+            background-color: #e0e7ff; /* indigo-100 */
+            color: #1f2937; /* gray-800 */
+            transform: rotateY(180deg);
+        }
+
+        .card.matched .card-front,
+        .card.matched .card-back {
+            background-color: #10b981; /* emerald-500 for matched */
+            color: white;
+        }
+
+        /* 메시지 박스 및 설명 창 공통 스타일 */
+        .modal-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            z-index: 1000;
+            display: none;
+            text-align: center;
+            font-size: 1.25rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 90%; /* 모바일에서도 잘 보이도록 최대 너비 설정 */
+        }
+        .modal-box h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #a78bfa; /* purple-400 */
+        }
+        .modal-box p {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+        .modal-box button {
+            margin-top: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            background-color: #6366f1; /* indigo-500 */
+            color: white;
+            border-radius: 0.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .modal-box button:hover {
+            background-color: #4f46e5; /* indigo-600 */
+        }
+
+        /* 랭킹 테이블 스타일 */
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+        .ranking-table th, .ranking-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0; /* gray-200 */
+            text-align: left;
+        }
+        .ranking-table th {
+            background-color: #f8fafc; /* gray-50 */
+            font-weight: bold;
+            color: #475569; /* slate-600 */
+        }
+        .ranking-table tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-4xl">
+        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-6">주기율표 카드 뒤집기 게임</h1>
+
+        <div class="flex justify-between items-center mb-6">
+            <div class="text-xl font-semibold text-gray-700">
+                점수: <span id="score" class="text-indigo-600">0</span>
+            </div>
+            <div class="text-xl font-semibold text-gray-700">
+                시간: <span id="timer" class="text-indigo-600">00:00</span>
+            </div>
+            <button id="restartButton" class="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
+                다시 시작
+            </button>
+        </div>
+        <div class="text-sm text-gray-500 text-center mb-4">
+            내 ID: <span id="userIdDisplay" class="font-mono text-gray-700 break-all"></span>
+        </div>
+
+        <div id="gameBoard" class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-4 w-full">
+            <!-- 카드들이 여기에 동적으로 생성됩니다 -->
+        </div>
+
+        <div class="mt-8">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-4">명예의 전당</h2>
+            <div class="overflow-x-auto rounded-lg shadow">
+                <table id="rankingTable" class="ranking-table bg-white">
+                    <thead>
+                        <tr>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">순위</th>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">플레이어 ID</th>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">시간</th>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">등급</th>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">점수</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankingTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- 랭킹 데이터가 여기에 동적으로 로드됩니다 -->
+                        <tr><td colspan="5" class="text-center py-4 text-gray-500">랭킹을 불러오는 중...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 게임 시작 설명 창 -->
+    <div id="instructionBox" class="modal-box">
+        <h2>게임 방법</h2>
+        <p>1. 카드를 클릭하여 뒤집으세요.</p>
+        <p>2. 원소 기호와 이름이 일치하는 카드 두 장을 찾으면 짝을 맞출 수 있습니다.</p>
+        <p>3. 모든 카드의 짝을 맞추면 게임이 종료되고 점수와 등급을 확인할 수 있습니다.</p>
+        <p>4. 첫 카드를 뒤집는 순간부터 시간이 측정됩니다.</p>
+        <button id="startGameButton">게임 시작</button>
+    </div>
+
+    <!-- 게임 완료 메시지 박스 -->
+    <div id="messageBox" class="modal-box">
+        <p id="messageText"></p>
+        <button id="messageBoxClose" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">닫기</button>
+    </div>
+
+    <script type="module">
+        // Firebase SDK imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase configuration and global variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let userId = null; // Current user ID
+        let isAuthReady = false; // Flag to check if authentication is ready
+
+        // Authenticate user
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+            } else {
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        userId = auth.currentUser.uid;
+                    } catch (error) {
+                        console.error("Custom token sign-in failed:", error);
+                        // Fallback to anonymous sign-in if custom token fails
+                        try {
+                            await signInAnonymously(auth);
+                            userId = auth.currentUser.uid;
+                        } catch (anonError) {
+                            console.error("Anonymous sign-in failed:", anonError);
+                            userId = crypto.randomUUID(); // Generate a random ID if all else fails
+                        }
+                    }
+                } else {
+                    // Sign in anonymously if no custom token is provided
+                    try {
+                        await signInAnonymously(auth);
+                        userId = auth.currentUser.uid;
+                    } catch (error) {
+                        console.error("Anonymous sign-in failed:", error);
+                        userId = crypto.randomUUID(); // Generate a random ID if anonymous sign-in fails
+                    }
+                }
+            }
+            document.getElementById('userIdDisplay').textContent = userId;
+            isAuthReady = true;
+            loadRankings(); // Load rankings once auth is ready
+        });
+
+        // 주기율표 원소 데이터 (기호와 이름)
+        const elements = [
+            { symbol: "H", name: "수소" },
+            { symbol: "He", name: "헬륨" },
+            { symbol: "Li", name: "리튬" },
+            { symbol: "Be", name: "베릴륨" },
+            { symbol: "B", name: "붕소" },
+            { symbol: "C", name: "탄소" },
+            { symbol: "N", name: "질소" },
+            { symbol: "O", name: "산소" },
+            { symbol: "F", name: "플루오린" },
+            { symbol: "Ne", name: "네온" },
+            { symbol: "Na", name: "나트륨" },
+            { symbol: "Mg", name: "마그네슘" },
+            { symbol: "Al", name: "알루미늄" },
+            { symbol: "Si", name: "규소" },
+            { symbol: "P", name: "인" },
+            { symbol: "S", name: "황" },
+            { symbol: "Cl", name: "염소" },
+            { symbol: "Ar", name: "아르곤" }
+        ];
+
+        let cards = []; // 게임에 사용될 카드 배열
+        let flippedCards = []; // 현재 뒤집힌 카드들
+        let matchedPairs = 0; // 맞춰진 쌍의 수
+        let score = 0; // 현재 점수
+        let lockBoard = false; // 카드 클릭 잠금 여부 (애니메이션 중 중복 클릭 방지)
+        let timerInterval; // 타이머 인터벌 ID
+        let startTime; // 게임 시작 시간
+
+        const gameBoard = document.getElementById('gameBoard');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer'); // 타이머 표시 요소
+        const restartButton = document.getElementById('restartButton');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const messageBoxClose = document.getElementById('messageBoxClose');
+        const instructionBox = document.getElementById('instructionBox'); // 설명 창 요소
+        const startGameButton = document.getElementById('startGameButton'); // 게임 시작 버튼
+        const rankingTableBody = document.getElementById('rankingTableBody'); // 랭킹 테이블 바디
+
+        // 배열 섞기 함수 (Fisher-Yates 알고리즘)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 게임 보드 초기화 및 카드 생성
+        function initializeGame() {
+            gameBoard.innerHTML = ''; // 기존 카드 제거
+            flippedCards = [];
+            matchedPairs = 0;
+            score = 0;
+            scoreDisplay.textContent = score;
+            lockBoard = false;
+            messageBox.style.display = 'none'; // 메시지 박스 숨기기
+            instructionBox.style.display = 'none'; // 설명 창 숨기기
+
+            // 타이머 초기화
+            clearInterval(timerInterval);
+            timerDisplay.textContent = '00:00';
+            startTime = null; // 게임 시작 시간을 null로 초기화
+
+            // 원소 기호와 이름을 각각 카드로 만들어 쌍으로 구성
+            const gameElements = [...elements.slice(0, 12)]; // 처음 12개 원소만 사용 (24장 카드)
+            cards = [];
+            gameElements.forEach(element => {
+                cards.push({ value: element.symbol, type: 'symbol', id: element.symbol });
+                cards.push({ value: element.name, type: 'name', id: element.symbol }); // 같은 ID를 사용하여 짝을 식별
+            });
+
+            shuffleArray(cards); // 카드 섞기
+
+            // 카드 생성 및 보드에 추가
+            cards.forEach((cardData, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card', 'relative', 'w-full', 'h-24', 'sm:h-28', 'md:h-32', 'cursor-pointer', 'perspective-1000');
+                card.dataset.id = cardData.id;
+                card.dataset.index = index; // 각 카드의 고유 인덱스
+
+                card.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front">?</div>
+                        <div class="card-back">${cardData.value}</div>
+                    </div>
+                `;
+                card.addEventListener('click', () => flipCard(card));
+                gameBoard.appendChild(card);
+            });
+        }
+
+        // 타이머 시작
+        function startTimer() {
+            startTime = new Date().getTime(); // 현재 시간을 시작 시간으로 설정
+            timerInterval = setInterval(updateTimer, 1000); // 1초마다 타이머 업데이트
+        }
+
+        // 타이머 업데이트
+        function updateTimer() {
+            const currentTime = new Date().getTime();
+            const elapsedTime = Math.floor((currentTime - startTime) / 1000); // 경과 시간 (초)
+
+            const minutes = Math.floor(elapsedTime / 60);
+            const seconds = elapsedTime % 60;
+
+            timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // 카드 뒤집기 로직
+        function flipCard(card) {
+            if (lockBoard) return; // 보드가 잠겨있으면 클릭 무시
+            if (card.classList.contains('flipped') || card.classList.contains('matched')) return; // 이미 뒤집혔거나 맞춰진 카드는 무시
+
+            // 첫 카드 뒤집을 때 타이머 시작
+            if (!startTime) {
+                startTimer();
+            }
+
+            card.classList.add('flipped');
+            flippedCards.push(card);
+
+            if (flippedCards.length === 2) {
+                lockBoard = true; // 두 장 뒤집었으니 보드 잠금
+                checkForMatch();
+            }
+        }
+
+        // 짝이 맞는지 확인
+        function checkForMatch() {
+            const [card1, card2] = flippedCards;
+            const isMatch = card1.dataset.id === card2.dataset.id;
+
+            if (isMatch) {
+                disableCards();
+            } else {
+                unflipCards();
+            }
+        }
+
+        // 짝이 맞았을 때 카드 비활성화
+        function disableCards() {
+            const [card1, card2] = flippedCards;
+            card1.classList.add('matched');
+            card2.classList.add('matched');
+            // 이벤트 리스너를 제거하여 다시 클릭되지 않도록 함
+            card1.removeEventListener('click', () => flipCard(card1));
+            card2.removeEventListener('click', () => flipCard(card2));
+
+            matchedPairs++;
+            score += 10; // 점수 증가
+            scoreDisplay.textContent = score;
+
+            resetBoard();
+            checkGameEnd();
+        }
+
+        // 짝이 맞지 않았을 때 카드 다시 뒤집기
+        function unflipCards() {
+            lockBoard = true; // 카드 뒤집히는 동안 클릭 방지
+            setTimeout(() => {
+                flippedCards.forEach(card => {
+                    card.classList.remove('flipped');
+                });
+                resetBoard();
+            }, 1000); // 1초 후 다시 뒤집기
+        }
+
+        // 보드 상태 초기화
+        function resetBoard() {
+            [flippedCards, lockBoard] = [[], false];
+        }
+
+        // 게임 종료 확인
+        function checkGameEnd() {
+            if (matchedPairs === cards.length / 2) {
+                clearInterval(timerInterval); // 타이머 중지
+                const finalTime = Math.floor((new Date().getTime() - startTime) / 1000); // 최종 경과 시간 (초)
+                const grade = getGrade(finalTime); // 등급 계산
+
+                setTimeout(() => {
+                    showMessage(`축하합니다! 모든 카드를 맞췄습니다! 최종 점수: ${score}점\n걸린 시간: ${formatTime(finalTime)}\n등급: ${grade}`);
+                    saveScore(userId, score, finalTime, grade); // 점수 저장
+                }, 500);
+            }
+        }
+
+        // 시간 포맷팅 함수
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        }
+
+        // 등급 계산 함수
+        function getGrade(timeInSeconds) {
+            // 난이도에 따른 등급 기준 (예시, 필요에 따라 조정 가능)
+            // 24장 카드 기준 (12쌍)
+            if (timeInSeconds <= 90) {
+                return "A+ (최고!)";
+            } else if (timeInSeconds <= 120) {
+                return "A (훌륭해요!)";
+            } else if (timeInSeconds <= 180) {
+                return "B (잘했어요!)";
+            } else if (timeInSeconds <= 240) {
+                return "C (노력해봐요!)";
+            } else {
+                return "D (다시 도전!)";
+            }
+        }
+
+        // 메시지 박스 표시
+        function showMessage(msg) {
+            messageText.innerHTML = msg.replace(/\n/g, '<br>'); // 줄바꿈 적용
+            messageBox.style.display = 'block';
+        }
+
+        // 설명 창 표시
+        function showInstructions() {
+            instructionBox.style.display = 'block';
+        }
+
+        // 메시지 박스 닫기 이벤트
+        messageBoxClose.addEventListener('click', () => {
+            messageBox.style.display = 'none';
+        });
+
+        // 게임 시작 버튼 이벤트
+        startGameButton.addEventListener('click', initializeGame);
+
+        // 다시 시작 버튼 이벤트
+        restartButton.addEventListener('click', initializeGame);
+
+        // Firestore에 점수 저장
+        async function saveScore(userId, score, timeInSeconds, grade) {
+            if (!isAuthReady) {
+                console.warn("Firebase authentication not ready. Score not saved.");
+                return;
+            }
+            try {
+                // Save to public data collection
+                const scoresCollectionRef = collection(db, `artifacts/${appId}/public/data/periodic_table_scores`);
+                await addDoc(scoresCollectionRef, {
+                    userId: userId,
+                    score: score,
+                    time: timeInSeconds,
+                    grade: grade,
+                    timestamp: new Date()
+                });
+                console.log("점수가 성공적으로 저장되었습니다!");
+                loadRankings(); // 점수 저장 후 랭킹 업데이트
+            } catch (e) {
+                console.error("점수 저장 중 오류 발생:", e);
+            }
+        }
+
+        // Firestore에서 랭킹 불러오기
+        async function loadRankings() {
+            if (!isAuthReady) {
+                console.warn("Firebase authentication not ready. Rankings not loaded.");
+                return;
+            }
+            try {
+                const scoresCollectionRef = collection(db, `artifacts/${appId}/public/data/periodic_table_scores`);
+                const q = query(scoresCollectionRef, orderBy("time"), limit(10)); // 시간 기준으로 오름차순 정렬, 상위 10개
+
+                onSnapshot(q, (snapshot) => {
+                    rankingTableBody.innerHTML = ''; // 기존 랭킹 초기화
+                    if (snapshot.empty) {
+                        rankingTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">아직 랭킹이 없습니다. 첫 번째 플레이어가 되어보세요!</td></tr>';
+                        return;
+                    }
+
+                    let rank = 1;
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const row = rankingTableBody.insertRow();
+                        row.innerHTML = `
+                            <td class="py-2 px-4 whitespace-nowrap">${rank++}</td>
+                            <td class="py-2 px-4 whitespace-nowrap font-mono break-all">${data.userId.substring(0, 8)}...</td>
+                            <td class="py-2 px-4 whitespace-nowrap">${formatTime(data.time)}</td>
+                            <td class="py-2 px-4 whitespace-nowrap">${data.grade}</td>
+                            <td class="py-2 px-4 whitespace-nowrap">${data.score}</td>
+                        `;
+                    });
+                });
+            } catch (e) {
+                console.error("랭킹 불러오기 중 오류 발생:", e);
+                rankingTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-red-500">랭킹을 불러오는 데 실패했습니다.</td></tr>';
+            }
+        }
+
+        // 페이지 로드 시 설명 창 표시
+        window.onload = showInstructions;
+    </script>
+</body>
+</html>
